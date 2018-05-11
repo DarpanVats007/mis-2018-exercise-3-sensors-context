@@ -28,6 +28,9 @@ package com.example.mis.sensor;
  *  https://www.ee.columbia.edu/~ronw/code/MEAPsoft/doc/html/FFT_8java-source.html
  */
 
+import static java.lang.Math.sqrt;
+import static java.lang.StrictMath.abs;
+
 public class FFT {
 
     int n, m;
@@ -35,6 +38,7 @@ public class FFT {
     // Lookup tables. Only need to recompute when size of FFT changes.
     double[] cos;
     double[] sin;
+
 
     public FFT(int n) {
         this.n = n;
@@ -74,9 +78,11 @@ public class FFT {
      *   as long as this header is included.
      ****************************************************************/
 
-    public void fft(double[] x, double[] y) {
+    double[] fft(double[] x, double[] y) {
         int i, j, k, n1, n2, a;
         double c, s, t1, t2;
+        double[] Wrx = new double[n];
+
 
         // Bit-reverse
         j = 0;
@@ -100,7 +106,7 @@ public class FFT {
         }
 
         // FFT
-        n1 = 0;
+      //  n1 = 0;
         n2 = 1;
 
         for (i = 0; i < m; i++) {
@@ -120,9 +126,12 @@ public class FFT {
                     y[k + n1] = y[k] - t2;
                     x[k] = x[k] + t1;
                     y[k] = y[k] + t2;
+                    Wrx[k] = abs(sqrt((x[k+n1]*x[k])+(y[k]*y[k+n1])));
+
                 }
             }
         }
+        return Wrx;
     }
 }
 //© 2018 GitHub, Inc.

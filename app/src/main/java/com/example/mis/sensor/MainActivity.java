@@ -1,92 +1,215 @@
 package com.example.mis.sensor;
 
-import android.os.AsyncTask;
-import android.support.v7.app.AppCompatActivity;
+
+import android.Manifest;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
-import com.example.mis.sensor.FFT;
+import android.support.v4.app.ActivityCompat;
+import android.support.v7.app.AppCompatActivity;
+import android.view.Menu;
+import android.media.MediaPlayer;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.Button;
 
-import java.util.Random;
+public class MainActivity extends AppCompatActivity implements SensorEventListener {
+    Button btnJog, btnBike;
+    MediaPlayer SongJog, SongBike;
+    int playing;
+    Sensor sensor;
+    LocationManager locMan;
+    LocationListener Spd;
+    final static int RQS_OPEN_AUDIO_MP3 =1;
 
-public class MainActivity extends AppCompatActivity {
+//    private static final String TAG = "MainActivity";
 
-    //example variables
-    private double[] rndAccExamplevalues;
-    private double[] freqCounts;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        //initiate and fill example array with random values
-        rndAccExamplevalues = new double[64];
-        randomFill(rndAccExamplevalues);
-        new FFTAsynctask(64).execute(rndAccExamplevalues);
-    }
-
-
-    /**
-     * Implements the fft functionality as an async task
-     * FFT(int n): constructor with fft length
-     * fft(double[] x, double[] y)
-     */
-
-    private class FFTAsynctask extends AsyncTask<double[], Void, double[]> {
-
-        private int wsize; //window size must be power of 2
-
-        // constructor to set window size
-        FFTAsynctask(int wsize) {
-            this.wsize = wsize;
+        btnJog = (Button) findViewById(R.id.button);
+        btnBike = (Button) findViewById(R.id.Bike);
+        btnJog.setOnClickListener(bnJog);
+        btnBike.setOnClickListener(bnBike);
+        SongJog = new MediaPlayer();
+        SongJog = MediaPlayer.create(this, R.raw.crazy);
+        SongBike = new MediaPlayer();
+        SongBike = MediaPlayer.create(this, R.raw.think);
+        findViewById(R.id.toolbar);
+        SensorManager sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
+        locMan = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        Spd = new speed();
+        locMan.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, Spd);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission. ACCESS_FINE_LOCATION},1);
+            return;
         }
+        locMan.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, Spd);
+        Button button2 = (Button) findViewById(R.id.button2);
+        button2.setOnClickListener(chooseMedia);
+
+    }
+    View.OnClickListener chooseMedia = new View.OnClickListener(){ //http://android-er.blogspot.de/2012/06/start-intent-to-choice-audiomp3-using.html
 
         @Override
-        protected double[] doInBackground(double[]... values) {
+        public void onClick(View v) {
+            Intent intent = new Intent();
+            intent.setType("audio/*");
+            intent.setAction(Intent.ACTION_GET_CONTENT);
+            startActivityForResult(Intent.createChooser(
+                    intent, "Open Audio file"), RQS_OPEN_AUDIO_MP3);
+        }
+    };
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (resultCode == RESULT_OK) {
+            if (requestCode == RQS_OPEN_AUDIO_MP3) {
+                Uri audioFileUri = data.getData();
 
+                SongJog=MediaPlayer.create(this,audioFileUri );
+                SongBike=MediaPlayer.create(this,audioFileUri );
+            }
+        }
+    }
+    private class speed implements LocationListener{
+        @Override
+        public void onLocationChanged(Location loc) {
+            Float MovSpeed =(loc.getSpeed()*3600)/1000;//convert to Km/h
+            if (MovSpeed >=15){ //biking
+                if(SongJog.isPlaying()){
+                    SongJog.pause();
+                }
+                SongBike.start();
+                playing = 1;
+                btnJog.setText(R.string.PC);
+            }
+            else if (MovSpeed >5 && MovSpeed <15){ //jogging speed
+                if(SongBike.isPlaying()){
+                    SongBike.pause();
+                }
+                SongJog.start();
+                playing = 1;
+                btnBike.setText(R.string.PT);
+            }
+            else{
 
-            double[] realPart = values[0].clone(); // actual acceleration values
-            double[] imagPart = new double[wsize]; // init empty
+                if(SongJog.isPlaying()){
+                    SongJog.pause();
+                }else if(SongBike.isPlaying()){
+                    SongBike.pause();
+                }
+                playing = 0;
+            }
+        }
+        @Override
+        public void onProviderDisabled(String arg0) {}
+        @Override
+        public void onProviderEnabled(String arg0) {}
+        @Override
+        public void onStatusChanged(String arg0, int arg1, Bundle arg2) {}
 
-            /**
-             * Init the FFT class with given window size and run it with your input.
-             * The fft() function overrides the realPart and imagPart arrays!
-             */
-            FFT fft = new FFT(wsize);
-            fft.fft(realPart, imagPart);
-            //init new double array for magnitude (e.g. frequency count)
-            double[] magnitude = new double[wsize];
+    }
 
+    Button.OnClickListener bnJog = new Button.OnClickListener() {
 
-            //fill array with magnitude values of the distribution
-            for (int i = 0; wsize > i ; i++) {
-                magnitude[i] = Math.sqrt(Math.pow(realPart[i], 2) + Math.pow(imagPart[i], 2));
+        @Override
+        public void onClick(View v) {
+            switch (playing) {
+                case 0:
+                    if(SongBike.isPlaying()){
+                        SongBike.pause();
+                    }
+                    SongJog.start();
+                    playing = 1;
+                    btnJog.setText(R.string.PC);
+                    break;
+                case 1:
+                    SongJog.pause();
+                    playing = 0;
+                    btnJog.setText(R.string.PlC);
+                    break;
+
+            }
+        }
+    };
+
+    Button.OnClickListener bnBike = new Button.OnClickListener() {
+
+        @Override
+        public void onClick(View v) {
+            switch (playing) {
+                case 0:
+                    SongBike.start();
+                    playing = 1;
+                    btnBike.setText(R.string.PT);
+                    break;
+
+                case 1:
+                    SongBike.pause();
+                    playing = 0;
+                    btnBike.setText(R.string.Plt);
+                    break;
             }
 
-            return magnitude;
-
         }
+    };
 
-        @Override
-        protected void onPostExecute(double[] values) {
-            //hand over values to global variable after background task is finished
-            freqCounts = values;
-        }
+    //@Override
+    //public boolean onCreateOptionsMenu(Menu menu) {
+    // Inflate the menu; this adds items to the action bar if it is present.
+    //getMenuInflater().inflate(R.menu.menu_main, menu);
+    //return true;
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        return true;
     }
 
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
 
-
-
-    /**
-     * little helper function to fill example with random double values
-     */
-    public void randomFill(double[] array){
-        Random rand = new Random();
-        for(int i = 0; array.length > i; i++){
-            array[i] = rand.nextDouble();
+        //noinspection SimplifiableIfStatement
+        if (id == R.id.FFT) {
+            startActivity(new Intent(getApplicationContext(),Liveview.class));
         }
+        return super.onOptionsItemSelected(item);
+    }
+    public void onSensorChanged(SensorEvent event) {
+        sensor = event.sensor;
+
+
     }
 
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
 
-
+    }
 }
+
+
+
